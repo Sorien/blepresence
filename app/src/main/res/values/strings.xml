@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">PhonePresenceBTHome</string>
+    <string name="bt_null">Error: Bluetooth object null</string>
+</resources>
