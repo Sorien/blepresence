@@ -4,64 +4,39 @@ import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
+import android.bluetooth.le.AdvertisingSet;
+import android.bluetooth.le.AdvertisingSetCallback;
+import android.bluetooth.le.AdvertisingSetParameters;
 import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
-
-import java.util.concurrent.TimeUnit;
-
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
-
 
 public class AdvertiserService extends Service {
 
     private static final String TAG = AdvertiserService.class.getSimpleName();
 
-    private static final int FOREGROUND_NOTIFICATION_ID = 1;
-
-    /**
-     * A global variable to let AdvertiserFragment check if the Service is running without needing
-     * to start or bind to it.
-     * This is the best practice method as defined here:
-     * https://groups.google.com/forum/#!topic/android-developers/jEvXMWgbgzE
-     */
-    public static boolean running = false;
-
-    public static final String ADVERTISING_FAILED =
-            "com.example.android.bluetoothadvertisements.advertising_failed";
-
-    public static final String ADVERTISING_FAILED_EXTRA_CODE = "failureCode";
-
-    public static final int ADVERTISING_TIMED_OUT = 6;
-
     private BluetoothLeAdvertiser mBluetoothLeAdvertiser;
 
-    private AdvertiseCallback mAdvertiseCallback;
+    private AdvertisingSetCallback mAdvertiseCallback;
 
-    private Handler mHandler;
-
-    private Runnable timeoutRunnable;
-
-    /**
-     * Length of time to allow advertising before automatically shutting off. (10 minutes)
-     */
-    private long TIMEOUT = TimeUnit.MILLISECONDS.convert(10, TimeUnit.MINUTES);
+    private static final int NOTIFICATION_ID = 1;
+    private static final String NOTIFICATION_CHANNEL_ID = "example.permanence";
 
     private static AdvertiserService mInstance = null;
+
+    private int mTransmitedCount;
 
     public static boolean isServiceCreated() {
         try {
@@ -75,33 +50,34 @@ public class AdvertiserService extends Service {
 
     @Override
     public void onCreate() {
-        running = true;
         startMyOwnForeground();
         initialize();
         startAdvertising();
-        setTimeout();
         super.onCreate();
         mInstance = this;
+        mTransmitedCount = 0;
     }
 
     @Override
     public void onDestroy() {
-        /**
-         * Note that onDestroy is not guaranteed to be called quickly or at all. Services exist at
-         * the whim of the system, and onDestroy can be delayed or skipped entirely if memory need
-         * is critical.
-         */
-        running = false;
         stopAdvertising();
-        mHandler.removeCallbacks(timeoutRunnable);
         stopForeground(true);
         mInstance = null;
         super.onDestroy();
     }
 
+    private Notification createNotification(String text)
+    {
+        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
+        return notificationBuilder.setOngoing(true)
+            .setContentTitle(text)
+            .setPriority(NotificationManager.IMPORTANCE_MIN)
+            .setCategory(Notification.CATEGORY_SERVICE)
+            .build();
+    }
+
     private void startMyOwnForeground()
     {
-        String NOTIFICATION_CHANNEL_ID = "example.permanence";
         String channelName = "Background Service";
         NotificationChannel chan = new NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_NONE);
         chan.setLightColor(Color.BLUE);
@@ -111,31 +87,25 @@ public class AdvertiserService extends Service {
         assert manager != null;
         manager.createNotificationChannel(chan);
 
-        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
-        Notification notification = notificationBuilder.setOngoing(true)
-                .setContentTitle("App is running in background")
-                .setPriority(NotificationManager.IMPORTANCE_MIN)
-                .setCategory(Notification.CATEGORY_SERVICE)
-                .build();
-        startForeground(2, notification);
+        startForeground(NOTIFICATION_ID, createNotification("Transiting in background"));
+    }
+
+    private void notify(String text) {
+
+        Notification notification = createNotification(text);
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        mNotificationManager.notify(NOTIFICATION_ID, notification);
     }
 
     private boolean ping() {
         return true;
     }
 
-    /**
-     * Required for extending service, but this will be a Started Service only, so no need for
-     * binding.
-     */
     @Override
     public IBinder onBind(Intent intent) {
         return null;
     }
 
-    /**
-     * Get references to system Bluetooth objects if we don't have them already.
-     */
     private void initialize() {
         if (mBluetoothLeAdvertiser == null) {
             BluetoothManager mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
@@ -153,142 +123,55 @@ public class AdvertiserService extends Service {
 
     }
 
-    /**
-     * Starts a delayed Runnable that will cause the BLE Advertising to timeout and stop after a
-     * set amount of time.
-     */
-    private void setTimeout() {
-        mHandler = new Handler();
-        timeoutRunnable = new Runnable() {
-            @Override
-            public void run() {
-                Log.d(TAG, "AdvertiserService has reached timeout of " + TIMEOUT + " milliseconds, stopping advertising.");
-                sendFailureIntent(ADVERTISING_TIMED_OUT);
-                stopSelf();
-            }
-        };
-        mHandler.postDelayed(timeoutRunnable, TIMEOUT);
-    }
-
-    /**
-     * Starts BLE Advertising.
-     */
     private void startAdvertising() {
         Log.d(TAG, "Service: Starting Advertising");
 
         if (mAdvertiseCallback == null) {
-            AdvertiseSettings settings = buildAdvertiseSettings();
-            AdvertiseData data = buildAdvertiseData();
-            mAdvertiseCallback = new SampleAdvertiseCallback();
+            mAdvertiseCallback = new BleAdvertiseCallback();
+
+            AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
+                    .setLegacyMode(true) // True by default, but set here as a reminder.
+                    .setConnectable(false)
+                    .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
+                    .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
+                    .build();
+
+            BtHomeAdvertiseDataBuilder serviceDataBuilder = (new BtHomeAdvertiseDataBuilder())
+                .AddBinarySensorData(BtHomeBinarySensorId.Pressence, true);
+
+            AdvertiseData.Builder dataBuilder = new AdvertiseData.Builder();
+            dataBuilder.setIncludeDeviceName(true);
+            dataBuilder.addServiceData(Constants.Service_UUID, serviceDataBuilder.build());
 
             if (mBluetoothLeAdvertiser != null) {
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
                     return;
                 }
-                mBluetoothLeAdvertiser.startAdvertising(settings, data, mAdvertiseCallback);
+                mBluetoothLeAdvertiser.startAdvertisingSet(parameters, dataBuilder.build(), null, null, null, mAdvertiseCallback);
             }
         }
     }
 
-    /**
-     * Move service to the foreground, to avoid execution limits on background processes.
-     *
-     * Callers should call stopForeground(true) when background work is complete.
-     */
-    private void goForeground() {
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
-                notificationIntent, 0);
-//        Notification n = new Notification.Builder(this)
-//                .setContentTitle("Advertising device via Bluetooth")
-//                .setContentText("This device is discoverable to others nearby.")
-////                .setSmallIcon(R.drawable.ic_launcher_background)
-//                .setContentIntent(pendingIntent)
-//                .build();
-//        startForeground(FOREGROUND_NOTIFICATION_ID, n);
-    }
-
-    /**
-     * Stops BLE Advertising.
-     */
     private void stopAdvertising() {
         Log.d(TAG, "Service: Stopping Advertising");
         if (mBluetoothLeAdvertiser != null) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
-            mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback);
+            mBluetoothLeAdvertiser.stopAdvertisingSet(mAdvertiseCallback);
             mAdvertiseCallback = null;
         }
     }
 
-    /**
-     * Returns an AdvertiseData object which includes the Service UUID and Device Name.
-     */
-    private AdvertiseData buildAdvertiseData() {
-
-        /**
-         * Note: There is a strict limit of 31 Bytes on packets sent over BLE Advertisements.
-         *  This includes everything put into AdvertiseData including UUIDs, device info, &
-         *  arbitrary service or manufacturer data.
-         *  Attempting to send packets over this limit will result in a failure with error code
-         *  AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE. Catch this error in the
-         *  onStartFailure() method of an AdvertiseCallback implementation.
-         */
-
-        AdvertiseData.Builder dataBuilder = new AdvertiseData.Builder();
-        dataBuilder.addServiceUuid(Constants.Service_UUID);
-        dataBuilder.setIncludeDeviceName(true);
-
-        /* For example - this will cause advertising to fail (exceeds size limit) */
-        //String failureData = "asdghkajsghalkxcjhfa;sghtalksjcfhalskfjhasldkjfhdskf";
-        //dataBuilder.addServiceData(Constants.Service_UUID, failureData.getBytes());
-
-        return dataBuilder.build();
-    }
-
-    /**
-     * Returns an AdvertiseSettings object set to use low power (to help preserve battery life)
-     * and disable the built-in timeout since this code uses its own timeout runnable.
-     */
-    private AdvertiseSettings buildAdvertiseSettings() {
-        AdvertiseSettings.Builder settingsBuilder = new AdvertiseSettings.Builder();
-        settingsBuilder.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER);
-        settingsBuilder.setTimeout(0);
-        return settingsBuilder.build();
-    }
-
-    /**
-     * Custom callback after Advertising succeeds or fails to start. Broadcasts the error code
-     * in an Intent to be picked up by AdvertiserFragment and stops this Service.
-     */
-    private class SampleAdvertiseCallback extends AdvertiseCallback {
-
+    private class BleAdvertiseCallback extends AdvertisingSetCallback {
         @Override
-        public void onStartFailure(int errorCode) {
-            super.onStartFailure(errorCode);
-
-            Log.d(TAG, "Advertising failed");
-            sendFailureIntent(errorCode);
-            stopSelf();
-
+        public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
+            Log.i(TAG, "onAdvertisingSetStarted(): txPower:" + txPower + " , status: " + status);
         }
 
         @Override
-        public void onStartSuccess(AdvertiseSettings settingsInEffect) {
-            super.onStartSuccess(settingsInEffect);
-            Log.d(TAG, "Advertising successfully started");
+        public void onPeriodicAdvertisingDataSet(AdvertisingSet advertisingSet, int status) {
+            Log.i(TAG, "onPeriodicAdvertisingDataSet(): status: " + status);
         }
-    }
-
-    /**
-     * Builds and sends a broadcast intent indicating Advertising has failed. Includes the error
-     * code as an extra. This is intended to be picked up by the {@code AdvertiserFragment}.
-     */
-    private void sendFailureIntent(int errorCode){
-        Intent failureIntent = new Intent();
-        failureIntent.setAction(ADVERTISING_FAILED);
-        failureIntent.putExtra(ADVERTISING_FAILED_EXTRA_CODE, errorCode);
-        sendBroadcast(failureIntent);
     }
 }

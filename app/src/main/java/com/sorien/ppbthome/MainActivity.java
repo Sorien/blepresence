@@ -25,12 +25,17 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
                 if (isChecked) {
-                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH_ADVERTISE) != PackageManager.PERMISSION_GRANTED) {
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
                         ActivityCompat.requestPermissions(MainActivity.this, new String[]{
-                                Manifest.permission.BLUETOOTH_ADVERTISE,
+//                                Manifest.permission.BLUETOOTH_ADVERTISE,
                                 Manifest.permission.BLUETOOTH
                         }, 1);
                     }
+
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.BLUETOOTH) != PackageManager.PERMISSION_GRANTED) {
+                        return;
+                    }
+
                     startService(new Intent(MainActivity.this, AdvertiserService.class));
                 } else {
                     stopService(new Intent(MainActivity.this, AdvertiserService.class));
