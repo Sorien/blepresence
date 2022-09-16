@@ -1,19 +1,17 @@
 package com.sorien.ppbthome;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-
 import android.Manifest;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.widget.CompoundButton;
-import android.widget.Switch;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
+import androidx.core.app.ActivityCompat;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -24,18 +22,15 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        Switch onOffSwitch = findViewById(R.id.activate_switch_id);
+        SwitchCompat onOffSwitch = findViewById(R.id.activate_switch_id);
 
         onOffSwitch.setChecked(AdvertiserService.isServiceCreated());
 
-        onOffSwitch.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked) {
-                    startServiceRequestPermissions();
-                } else {
-                    stopService();
-                }
+        onOffSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (isChecked) {
+                startServiceRequestPermissions();
+            } else {
+                stopService();
             }
         });
     }
@@ -60,12 +55,12 @@ public class MainActivity extends AppCompatActivity {
 
     public void startService() {
         startService(new Intent(MainActivity.this, AdvertiserService.class));
-        Toast.makeText(this, "Broadcasting started.", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Broadcasting started.", Toast.LENGTH_SHORT).show();
     }
 
     public void stopService() {
         stopService(new Intent(MainActivity.this, AdvertiserService.class));
-        Toast.makeText(this, "Broadcasting finished.", Toast.LENGTH_LONG).show();
+        Toast.makeText(this, "Broadcasting finished.", Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -77,7 +72,7 @@ public class MainActivity extends AppCompatActivity {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 startService();
             } else {
-                Switch onOffSwitch = findViewById(R.id.activate_switch_id);
+                SwitchCompat onOffSwitch = findViewById(R.id.activate_switch_id);
                 onOffSwitch.setChecked(AdvertiserService.isServiceCreated());
             }
         }
