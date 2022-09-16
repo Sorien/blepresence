@@ -8,7 +8,6 @@ import android.app.Service;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseData;
-import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.AdvertisingSet;
 import android.bluetooth.le.AdvertisingSetCallback;
 import android.bluetooth.le.AdvertisingSetParameters;
@@ -71,6 +70,7 @@ public class AdvertiserService extends Service {
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
         return notificationBuilder.setOngoing(true)
             .setContentTitle(text)
+            .setSmallIcon(R.drawable.ic_stat_bluetooth)
             .setPriority(NotificationManager.IMPORTANCE_MIN)
             .setCategory(Notification.CATEGORY_SERVICE)
             .build();
@@ -120,7 +120,6 @@ public class AdvertiserService extends Service {
                 Toast.makeText(this, getString(R.string.bt_null), Toast.LENGTH_LONG).show();
             }
         }
-
     }
 
     private void startAdvertising() {
@@ -144,7 +143,7 @@ public class AdvertiserService extends Service {
             dataBuilder.addServiceData(Constants.Service_UUID, serviceDataBuilder.build());
 
             if (mBluetoothLeAdvertiser != null) {
-                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
+                if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                     return;
                 }
                 mBluetoothLeAdvertiser.startAdvertisingSet(parameters, dataBuilder.build(), null, null, null, mAdvertiseCallback);
@@ -155,7 +154,7 @@ public class AdvertiserService extends Service {
     private void stopAdvertising() {
         Log.d(TAG, "Service: Stopping Advertising");
         if (mBluetoothLeAdvertiser != null) {
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_ADMIN) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                 return;
             }
             mBluetoothLeAdvertiser.stopAdvertisingSet(mAdvertiseCallback);
@@ -163,7 +162,7 @@ public class AdvertiserService extends Service {
         }
     }
 
-    private class BleAdvertiseCallback extends AdvertisingSetCallback {
+    private static class BleAdvertiseCallback extends AdvertisingSetCallback {
         @Override
         public void onAdvertisingSetStarted(AdvertisingSet advertisingSet, int txPower, int status) {
             Log.i(TAG, "onAdvertisingSetStarted(): txPower:" + txPower + " , status: " + status);
