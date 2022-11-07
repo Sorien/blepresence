@@ -19,6 +19,9 @@ import android.graphics.Color;
 import android.os.IBinder;
 import android.util.Log;
 import android.widget.Toast;
+
+import java.util.UUID;
+
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 
@@ -129,24 +132,27 @@ public class AdvertiserService extends Service {
             mAdvertiseCallback = new BleAdvertiseCallback();
 
             AdvertisingSetParameters parameters = (new AdvertisingSetParameters.Builder())
-                    .setLegacyMode(true) // True by default, but set here as a reminder.
+                    .setLegacyMode(true)
+                    .setScannable(true)
                     .setConnectable(false)
                     .setInterval(AdvertisingSetParameters.INTERVAL_HIGH)
                     .setTxPowerLevel(AdvertisingSetParameters.TX_POWER_MEDIUM)
                     .build();
 
-            BtHomeAdvertiseDataBuilder serviceDataBuilder = (new BtHomeAdvertiseDataBuilder())
-                .AddBinarySensorData(BtHomeBinarySensorId.Pressence, true);
+            IBeaconAdvertiseDataBuilder dataBuilder = new IBeaconAdvertiseDataBuilder(
+                    UUID.fromString("580774c2-ad48-4a83-881b-2af77324aa53"),
+                    (short)100, (short)0, (byte)-50
+            );
 
-            AdvertiseData.Builder dataBuilder = new AdvertiseData.Builder();
-            dataBuilder.setIncludeDeviceName(true);
-            dataBuilder.addServiceData(Constants.Service_UUID, serviceDataBuilder.build());
+            AdvertiseData scanResponse = new AdvertiseData.Builder()
+                    .setIncludeDeviceName(true)
+                    .build();
 
             if (mBluetoothLeAdvertiser != null) {
                 if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                     return;
                 }
-                mBluetoothLeAdvertiser.startAdvertisingSet(parameters, dataBuilder.build(), null, null, null, mAdvertiseCallback);
+                mBluetoothLeAdvertiser.startAdvertisingSet(parameters, dataBuilder.build(), scanResponse, null, null, mAdvertiseCallback);
             }
         }
     }
