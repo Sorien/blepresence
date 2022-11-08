@@ -38,8 +38,6 @@ public class AdvertiserService extends Service {
 
     private static AdvertiserService mInstance = null;
 
-    private int mTransmitedCount;
-
     public static boolean isServiceCreated() {
         try {
             // If instance was not cleared but the service was destroyed an Exception will be thrown
@@ -57,7 +55,6 @@ public class AdvertiserService extends Service {
         startAdvertising();
         super.onCreate();
         mInstance = this;
-        mTransmitedCount = 0;
     }
 
     @Override
