@@ -55,11 +55,19 @@ public class MainActivity extends AppCompatActivity {
 
     public void startService() {
         startService(new Intent(MainActivity.this, AdvertiserService.class));
+
+        Config config = new Config(this);
+        config.setAutoStart(true);
+
         Toast.makeText(this, "Broadcasting started.", Toast.LENGTH_SHORT).show();
     }
 
     public void stopService() {
         stopService(new Intent(MainActivity.this, AdvertiserService.class));
+
+        Config config = new Config(this);
+        config.setAutoStart(false);
+
         Toast.makeText(this, "Broadcasting finished.", Toast.LENGTH_SHORT).show();
     }
 
