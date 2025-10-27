@@ -1,6 +1,8 @@
 package com.sorien.ppbthome;
 
 import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -9,6 +11,7 @@ import android.widget.Toast;
 import java.util.ArrayList;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.app.ActivityCompat;
@@ -16,6 +19,7 @@ import androidx.core.app.ActivityCompat;
 public class MainActivity extends AppCompatActivity {
 
     private static final int PERMISSION_REQUEST_CODE = 1;
+    private static final int BLUETOOTH_REQUEST_ENABLE = 2000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -28,11 +32,21 @@ public class MainActivity extends AppCompatActivity {
 
         onOffSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
-                startServiceRequestPermissions();
+                startServiceEnableBluetooth();
             } else {
                 stopService();
             }
         });
+    }
+
+    public void startServiceEnableBluetooth() {
+        BluetoothManager bluetoothManager = (BluetoothManager)MainActivity.this.getSystemService(MainActivity.BLUETOOTH_SERVICE);
+        if (!bluetoothManager.getAdapter().isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            ActivityCompat.startActivityForResult(MainActivity.this, enableBtIntent, BLUETOOTH_REQUEST_ENABLE, null);
+        } else {
+            startServiceRequestPermissions();
+        }
     }
 
     public void startServiceRequestPermissions() {
@@ -63,12 +77,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void stopService() {
-        stopService(new Intent(MainActivity.this, AdvertiserService.class));
+        if (AdvertiserService.isServiceCreated()) {
+            stopService(new Intent(MainActivity.this, AdvertiserService.class));
 
-        Config config = new Config(this);
-        config.setAutoStart(false);
+            Config config = new Config(this);
+            config.setAutoStart(false);
 
-        Toast.makeText(this, "Broadcasting finished.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Broadcasting finished.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -82,6 +98,21 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 SwitchCompat onOffSwitch = findViewById(R.id.activate_switch_id);
                 onOffSwitch.setChecked(AdvertiserService.isServiceCreated());
+            }
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == BLUETOOTH_REQUEST_ENABLE){
+            if (resultCode == RESULT_OK){
+                startServiceRequestPermissions();
+            }
+            else if (resultCode==RESULT_CANCELED){
+                SwitchCompat onOffSwitch = findViewById(R.id.activate_switch_id);
+                onOffSwitch.setChecked(false);
+                Toast.makeText(this, "Bluetooth not enabled.", Toast.LENGTH_SHORT).show();
             }
         }
     }

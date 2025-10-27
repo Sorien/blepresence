@@ -25,6 +25,8 @@ import java.util.UUID;
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 
+import static android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE;
+
 public class AdvertiserService extends Service {
 
     private static final String TAG = AdvertiserService.class.getSimpleName();
@@ -34,7 +36,7 @@ public class AdvertiserService extends Service {
     private AdvertisingSetCallback mAdvertiseCallback;
 
     private static final int NOTIFICATION_ID = 1;
-    private static final String NOTIFICATION_CHANNEL_ID = "example.permanence";
+    private static final String NOTIFICATION_CHANNEL_ID = "beacon";
 
     private static AdvertiserService mInstance = null;
 
@@ -50,7 +52,7 @@ public class AdvertiserService extends Service {
 
     @Override
     public void onCreate() {
-        startMyOwnForeground();
+        startInForeground();
         initialize();
         startAdvertising();
         super.onCreate();
@@ -60,24 +62,22 @@ public class AdvertiserService extends Service {
     @Override
     public void onDestroy() {
         stopAdvertising();
-        stopForeground(true);
+        stopForeground(STOP_FOREGROUND_REMOVE);
         mInstance = null;
         super.onDestroy();
     }
 
-    private Notification createNotification(String text)
-    {
+    private Notification createNotification(String text) {
         NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID);
         return notificationBuilder.setOngoing(true)
-            .setContentTitle(text)
-            .setSmallIcon(R.drawable.ic_stat_bluetooth)
-            .setPriority(NotificationManager.IMPORTANCE_MIN)
-            .setCategory(Notification.CATEGORY_SERVICE)
-            .build();
+                .setContentTitle(text)
+                .setSmallIcon(R.drawable.ic_stat_bluetooth)
+                .setPriority(NotificationManager.IMPORTANCE_MIN)
+                .setCategory(Notification.CATEGORY_SERVICE)
+                .build();
     }
 
-    private void startMyOwnForeground()
-    {
+    private void startInForeground() {
         String channelName = "Background Service";
         NotificationChannel chan = new NotificationChannel(NOTIFICATION_CHANNEL_ID, channelName, NotificationManager.IMPORTANCE_NONE);
         chan.setLightColor(Color.BLUE);
@@ -87,7 +87,7 @@ public class AdvertiserService extends Service {
         assert manager != null;
         manager.createNotificationChannel(chan);
 
-        startForeground(NOTIFICATION_ID, createNotification("Transiting in background"));
+        startForeground(NOTIFICATION_ID, createNotification("Transiting in background"), FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
     }
 
     private void notify(String text) {
@@ -138,7 +138,7 @@ public class AdvertiserService extends Service {
 
             IBeaconAdvertiseDataBuilder dataBuilder = new IBeaconAdvertiseDataBuilder(
                     UUID.fromString("580774c2-ad48-4a83-881b-2af77324aa53"),
-                    (short)100, (short)0, (byte)-50
+                    (short) 100, (short) 0, (byte) -50
             );
 
             AdvertiseData scanResponse = new AdvertiseData.Builder()
